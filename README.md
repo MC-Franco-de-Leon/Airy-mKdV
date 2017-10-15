@@ -1,5 +1,5 @@
 # Airy-mKdV
-Numerical implementation to solve Airy flow  and the modified Korteweg-de Vries equation. 
+Implementation in Fortran to solve Airy flow  and the modified Korteweg-de Vries equation. 
 
 This also as a soliton visualizator.
 
