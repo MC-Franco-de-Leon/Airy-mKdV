@@ -3,26 +3,26 @@ Numerical implementation to solve Airy flow  and the modified Korteweg-de Vries 
 
 This also as a soliton visualizator.
 
-##DESCRIPTION OF THE PROBLEM
+## DESCRIPTION OF THE PROBLEM
 This code computes the numerical solution of the two dimensional, periodic Initial Value Problem for the so-called Airy flow (a two dimensional dispersive equation).  The formulation is based in the theta-L formulation and solution theory, in which the dynamical variables (theta,sL) are used instead of (x,y) classical coordinates. The variable theta simplifies the formulation, so the arc-length sl must be constant over time. The code calculates the evolution for the theta-equation, converts back to (x,y) for visualization. 
 
-##NUMERICAL METHOD
+## NUMERICAL METHOD
 
 -The code is initialized with a 2 dimensional shape calling the function
  initiall, as part of
 -It extracts the initial value for theta_0
  library.f
-###TIME DISCRETIZATION
+### TIME DISCRETIZATION
 -The first step in the evolution of theta is computed with forward Euler
 -The third and subsequent steps are computed using Adams Bashforth method
-###SPACE DISCRETIZATION
+### SPACE DISCRETIZATION
 it is computed with pseudo spectral methods (multiplication of nonlinear terms in physical space)
-#SOFTWARE REQUIREMENTS
+# SOFTWARE REQUIREMENTS
 Before running the code you will need to install
 - gfortran for doing the main computations
 - Matlab 2012 or later for visualization and data analysis
 
-#HOW THE RUN THE CODE
+# HOW THE RUN THE CODE
 The code receives input data from
 
 in.d 
@@ -56,7 +56,7 @@ airyflow.f,
 
 which uses nl.f to handle the non-linear terms
 
-#OUTPUT OF THE CODE
+# OUTPUT OF THE CODE
 On file:
 The code generates
 - xp, yp files containing the evolution  of (x,y) positions 
@@ -74,7 +74,7 @@ It keeps track of
 - Center of mass
 - Perturbation size
 
- VISUALIZE THE RESULTS 
+ ## VISUALIZE THE RESULTS 
 You can use matlab to visualize the evolution of the curve that solves Airy flow and the evolution of the curvature that according to the modified Korteweg de Vries equation from the curvature of the curve. The function is called
 
 visualize.m
