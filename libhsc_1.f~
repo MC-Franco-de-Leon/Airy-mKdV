@@ -1,0 +1,1103 @@
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c HELE SHAW. 1/31/93  **[0,1]**
+c
+c  THIS CONTAINS THE LIBRARY OF ROUTINES FOR THE COMPUTATION
+c  OF THE TANGENT ANGLE FORMUATION OF SOME FREE-SURFACE FLOWS.
+c  PARTICULARLY FOR HELE-SHAW FLOWS. THIS ASSUMES THAT A CLOSED
+c  CURVE IS GIVEN AS INITIAL DATA. THIS IS PERIODIC ON [0,1].
+c  THIS FILE CONTAINS:
+c
+c      arc       - computes the equal arclength points.
+c      recon     - reconstructs the x,y positions from theta,sl
+c      fin       - computes the indefinite integral of a per. function
+c      kfilter   - filters a periodic function
+c                      smoothing is used, last 2 modes set to 0
+c      kfilterx  - filters x=alpha+s
+c      kfiltern  - sets n/2 mode to 0
+c      kfilternx - sets n/2 mode to 0 in x=alpha+s
+c      fd1       - compute deriv of a per. function
+c      acurv     - compute curvature from theta,sl
+c      uset      - compute norm and tan vel. from ave vel, this calls
+c                     recon, velocity, rntvel. This part is for vortex sheets,
+c                     and must be modified for Hele-Shaw.
+c      rntvel    - compute normal and tangential vel from ave vel.
+c      rtvel     - compute tan. vel. for equal arclength frame
+c      velocity  - compute ave. velocity
+c      initiall  - initialize the solution vector
+c      stfilter  - filter x so that x_alpha=1+s_alpha
+c      tfilter   - not used, filters theta
+c      vmax      - compute max of a vector
+c      thetsolve - compute tan angle from curvature.
+c
+c      
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   THIS SUBROUTINE, GIVEN A PARAMETRIZATION BETA(J)=j*h, GIVES A
+c   SET OF EQUALLY SPACED POINTS IN ARCLENGTH
+c   THIS IS DONE VIA NEWTON ITERATION
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine arc(m,h,ds,alpha,tol)
+       implicit double precision (a-h,o-z)
+       dimension alpha(0:4800),dsi(0:4800)
+       dimension ds(0:4800),f(0:4800),fp(0:4800)
+       dimension a(0:4800),b(0:4800),c(0:4800),d(0:4800)
+
+       m1=m+1
+       pi=4.d0*datan(1.d0)
+       p2=2.d0*pi
+
+c  integrate ds and set-up functions for interpolation and iteration
+       call fin(m,h,p2,dsi,ds)
+       ave=dsi(m)
+       do j=0,m
+         f(j)=dble(j)*h*ave-dsi(j)
+         fp(j)=-ds(j)
+       end do 
+
+       do j=0,m
+         a(j)=f(j)/dble(m)
+         b(j)=0.d0
+         c(j)=fp(j)/dble(m)
+         d(j)=0.d0
+       end do
+
+       call fft842(0,m,a,b)
+       call fft842(0,m,c,d)
+
+c  for each point, iterate.
+       alpha(0)=0.d0
+       do j=1,m 
+
+          ao=alpha(j-1)+h*(ave/ds(j))
+
+c  begin iterations
+
+          do l=0,100
+             
+             aoo=p2*ao
+             call synth(f,v,aoo,m1,a,b)
+             call synth(fp,vp,aoo,m1,c,d)
+             v=v+(dble(j)*h-ao)*ave
+
+             dalp=v/vp
+             an=ao-dalp
+
+             err=dabs(dalp)
+c             write(6,*)dalp
+
+             if (err .le. tol) goto 1000
+
+             ao=an
+
+          end do
+
+ 1000     continue
+          alpha(j)=an
+
+       end do
+         
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  GIVEN AN ARCLENGTH SL, AND A TAN ANGLE THETA, THIS CODE
+c  RECONSTRUCTS THE CURVE AND GIVES X,Y
+c
+c  NEED EQUAL ARCLENGTH TO DO
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine recon (m,h,p2,sl,theta,x,y,avx,avy,dcut)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),x(0:4800),y(0:4800)
+       dimension temp(0:4800),temp1(0:4800)
+       common /init/ x0,y0
+
+
+       do j=0,m-1
+
+        temp(j)=sl*cos(theta(j))
+        temp1(j)=sl*sin(theta(j))
+
+       end do
+      
+       call fin(m,h,p2,x,temp)
+       call fin(m,h,p2,y,temp1)
+
+       avx=x(m)
+       avy=y(m)
+ 
+c       avx=1.d0
+c       avy=0.d0
+
+       do j=1,m
+        x(j)=x(j)-dble(j)*h*avx+x0
+        y(j)=y(j)-dble(j)*h*avy+y0
+       end do
+       x(0)=x0
+       y(0)=y0
+
+c       call kfilter(m,dcut,x)
+c       call kfilter(m,dcut,y)
+      
+       avy=0.d0
+       avx=1.d0
+
+      return
+      end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   THIS CODE FORMS THE INDEFINITE INTEGRAL OF A PERIODIC FUNCTION
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine fin (n,h,p2,yi,y)
+       implicit double precision (a-h,o-z)
+       dimension yi(0:4800),y(0:4800),a(0:4800)
+       dimension b(0:4800)
+
+       do j=0,n-1
+        a(j)=y(j)
+       end do
+       a(n)=a(0)
+ 
+
+       call fast(a,n)
+       b(0)=0.d0
+       b(1)=0.d0
+
+       do j=1,n/2
+
+        k=2*j
+        b(k)=a(k+1)/(p2*dble(j))
+        b(k+1)=-a(k)/(p2*dble(j))
+
+       end do
+
+       call fsst(b,n)
+       b(n)=b(0)
+
+       do j=0,n
+        yi(j)=(a(0)/dble(n))*dble(j)*h + b(j)-b(n)
+       end do
+
+      return
+      end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   fourier filter
+c   with krasny filtering with 1 input vector
+c
+c   USING FAST.f FOURIER TRANSFORM
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine kfilter(n,dcut,u)
+        implicit double precision(a-h,o-z)
+        dimension u(0:4800)
+        dimension b(0:4800)
+       
+        do j=0,n-1
+
+         b(j)=u(j)
+
+        end do
+        b(n)=b(0)
+
+c filter fourier coeffs
+
+        call fast(b,n)
+
+        test=(b(0)/dble(n))**2 +(b(1)/dble(n))**2
+        test=dsqrt(test)
+
+         if (test .le. dcut) then
+           b(0)=0.d0
+           b(1)=0.d0
+         end if
+
+        do j=1,n/2
+
+         k=2*j
+         test=(b(k)/dble(n))**2 + (b(k+1)/dble(n))**2
+         test=dsqrt(test)
+
+         if (test .le. dcut) then
+           b(k)=0.d0
+           b(k+1)=0.d0
+         end if
+
+        end do
+
+        do k=n-3,n+1
+           b(k)=0.d0
+        end do
+
+
+c
+c
+C     Applying Fourier smoothing of 25th order
+
+      do k=1,n
+      b(k)=b(k)*exp(-10.d0*(dble(k)/dble(n))**25)
+
+c         b(k)=b(k)*exp(-10.d0*(dble(k)/dble(n))**1)
+
+      end do
+C
+
+        call fsst(b,n)
+
+        do j=0,n-1
+
+         u(j)=b(j)
+
+        end do
+
+        u(n)=b(0)
+
+        
+    
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  kfilter x
+c  filters a vector = periodic
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine kfilterx(m,dcut,x,h)
+       implicit double precision (a-h,o-z)
+       dimension x(0:4800)
+
+
+       call kfilter(m,dcut,x)
+
+
+      return
+      end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  kfiltern x
+c  filters N/2 mode of a vector = periodic
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine kfilternx(m,x,h)
+       implicit double precision (a-h,o-z)
+       dimension x(0:4800)
+
+
+       call kfiltern(m,x)
+
+      return
+      end
+c
+c
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c  this routine filters the n/2 mode only
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine kfiltern(n,u)
+       implicit double precision (a-h,o-z)
+       dimension u(0:4800)
+       dimension b(0:4800)
+
+       do j=0,n-1
+
+        b(j)=u(j)
+
+       end do
+
+c remove n/2 coeff
+
+       call fast(b,n)
+
+       b(n)=0.d0
+       b(n+1)=0.d0
+
+       call fsst(b,n)
+
+       do j=0,n-1
+
+        u(j)=b(j)
+
+       end do
+
+       u(n)=u(0)
+
+      return
+      end  
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c  subroutine to compute SPECTRAL derivatives in space
+c  for periodic data
+c
+c
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine fd1(n,x,sx,h,dcut)
+       implicit double precision(a-h,o-z)
+       dimension x(0:4800),sx(0:4800),x1(0:4800),sx1(0:4800)
+      
+
+       do i=0,n-1
+        x1(i)=x(i)
+       end do
+       x1(n)=x(0)
+
+       call fdiff(x1,sx1,n+1,h)
+
+       do i=0,n-1
+        sx(i)=sx1(i)
+       end do
+       sx(n)=sx(0)
+
+
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  remove linear part.
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine fd1x(n,x,sx,h,dcut)
+       implicit double precision(a-h,o-z)
+       dimension x(0:4800),sx(0:4800),x1(0:4800),sx1(0:4800)
+
+       pi=4.d0*datan(1.d0)
+       p2=2.d0*pi
+      
+
+       do i=0,n-1
+        x1(i)=x(i)-p2*dble(i)*h
+
+       end do
+       x1(n)=x(0)
+
+
+       call fdiff(x1,sx1,n+1,h)
+
+       do i=0,n-1
+        sx(i)=sx1(i)+p2
+
+       end do
+       sx(n)=sx(0)
+
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c THIS ROUTINE COMPUTES THE CURVATURE FROM THE TANGENT
+c ANGLE FORMULATION
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine acurv(m,sl,theta,dkap,dcut,h)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),dkap(0:4800)
+       dimension stheta(0:4800)
+
+       call fd1x(m,theta,stheta,h,dcut)
+c       call kfilter(m,dcut,stheta)
+
+       do j=0,m-1
+      
+        dkap(j)=stheta(j)/sl
+
+       end do
+
+       dkap(m)=dkap(0)
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  THIS CODE COMPUTES THE NORMAL VELOCITY GIVEN THE U,V FROM THE
+c  VELOCITY ROUTINE
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine rntvel(m,h,p2,x,y,sl,theta,u,v,un,ut,dcut)
+       implicit double precision (a-h,o-z)
+       dimension x(0:4800),y(0:4800)
+       dimension u(0:4800),v(0:4800),un(0:4800),ut(0:4800)
+       dimension sx(0:4800),sy(0:4800),theta(0:4800)
+
+c       call kfilter(m,dcut,u)
+c       call kfilter(m,dcut,v)
+
+C       write(22,*)'sx=, sy,sl',sl
+       do j=0,m-1
+
+        sx(j)=cos(theta(j))
+        sy(j)=sin(theta(j))
+C         write(22,*)sx(j),sy(j)
+ 
+       end do
+
+
+       do j=0,m-1
+
+        un(j)=(sx(j)*v(j)-sy(j)*u(j))
+        ut(j)=(sx(j)*u(j)+sy(j)*v(j))
+
+       end do
+       un(m)=un(0)
+       ut(m)=ut(0)
+
+c       call kfilter(m,dcut,un)
+c       call kfilter(m,dcut,ut)
+ 
+       return
+       end
+
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  THIS ROUTINE COMPUTES THE TANGENT VELOCITY GIVEN THE NORMAL
+c  VELOCITY. IT ASSUMeS THAT THE TANGENTIAL VELOCITY AT ALPHA=0
+c  IS 0
+c
+c  IT IS TO BE USED IN CONJUNCTION WITH THE TANGENT ANGLE FORMULATION
+c
+c     UNCONSTRAINTED
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine rtvel_un(m,h,p2,theta,unorm,utan,dcut)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),unorm(0:4800),utan(0:4800)
+       dimension stheta(0:4800),temp(0:4800)
+
+       call fd1x(m,theta,stheta,h,dcut)
+c       call kfilter(m,dcut,stheta)
+
+       do j=0,m-1
+        temp(j)=stheta(j)*unorm(j)  
+        utan(j)=0.d0
+       end do
+       utan(m)=0.d0
+       temp(m)=temp(0)
+
+       call fin(m,h,p2,utan,temp)
+
+c original       do j=0,m-1
+c        utan(j)=utan(j)-utan(m)*dble(j)*h
+c       end do
+c        utan(m)=utan(0)
+
+c new tangential velocity, constant stuff
+       
+       do j=0,m-1
+c        utan(j)=utan(j)-utan(m)*dble(j)*h
+          utan(j)=0.d0
+       end do
+        utan(m)=utan(0)
+
+c       call kfilter(m,dcut,utan)
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  THIS ROUTINE COMPUTES THE TANGENT VELOCITY GIVEN THE NORMAL
+c  VELOCITY. IT ASSUMeS THAT THE TANGENTIAL VELOCITY AT ALPHA=0
+c  IS 0
+c
+c  IT IS TO BE USED IN CONJUNCTION WITH THE TANGENT ANGLE FORMULATION
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine rtvel(m,h,p2,theta,un,ut,dcut)
+
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),un(0:4800),ut(0:4800)
+       dimension stheta(0:4800),temp(0:4800) 
+
+       call fd1x(m,theta,stheta,h,dcut)
+c       call kfilter(m,dcut,stheta)
+       do j=0,m-1
+
+        temp(j)=stheta(j)*un(j)
+        ut(j)=0.d0
+
+       end do
+       ut(m)=0.d0
+       temp(m)=temp(0)
+
+       call fin(m,h,p2,ut,temp)
+
+       do j=0,m-1
+
+c        ut(j)=-ut(j)+ut(m)*dble(j)*h
+         ut(j)=0
+ 
+       end do
+        ut(m)=ut(0)
+
+      return
+      end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c   THIS CODE FORMS THE NORMAL AND TAN VELOCITY GIVEN THE ANGLE AND ARCLENGTH 
+c   and returns the normal and tan vel. from the ave. vel. integral
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine uset(m,h,p2,del,dcut,sl,theta,dalpha,w,un,ut)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),un(0:4800),ut(0:4800),x(0:4800)
+       dimension wt(0:4800),dkap(0:4800),sdkap(0:4800)
+       dimension temp2(0:4800),temp4(0:4800)
+       dimension stheta(0:4800),sstheta(0:4800)
+       double precision unorm,utan
+
+
+c       common /init/ x0,y0
+       common /Nvel/ unorm
+
+c first attempt
+       call acurv(m,sl,theta,dkap,dcut,h) 
+
+c        do j=0,m-1
+c         temp2(j)=dkap(j)
+c        end do
+c        temp2(m)=temp2(0)
+c        call fast(temp2,m)
+c        do j=1,m/2+1
+c         k=2*(j-1)
+c         rk=p2*dble(j-1)
+c         rsl=(rk/sl)
+c         temp4(k)=rsl*temp2(k+1)
+c         temp4(k+1)=-rsl*temp2(k)
+c        end do
+c        call fsst(temp4,m)
+c        do j=0,m-1
+c         un(j)=temp4(j)/sl
+c        end do
+c        un(m)=un(0)
+c      	write(6,*)'normal 0 ',un(0)
+c second attempt
+c        do j=0,m-1
+c         temp2(j)=theta(j)-p2*dble(j)*h
+c        end do
+c        temp2(m)=temp2(0)
+c        call fast(temp2,m)
+c        do j=1,m/2+1
+c         k=2*(j-1)
+c         rk=p2*dble(j-1)
+c         rsl=(rk/sl)**2
+c         temp4(k)=-rsl*temp2(k)
+c         temp4(k+1)=-rsl*temp2(k+1)
+c        end do
+c        call fsst(temp4,m)
+c        do j=0,m-1
+c         un(j)=-temp4(j)
+c        end do
+c        un(m)=un(0)
+c      	write(6,*)'normal manual',un(0)
+        do j=0,m-1
+         temp2(j)=dkap(j)-p2
+        end do
+        temp2(m)=temp2(0)
+        call fast(temp2,m)
+        do j=1,m/2+1
+         k=2*(j-1)
+         rk=p2*dble(j-1)
+         rsl=(rk/sl)
+         temp4(k)=-rsl*temp2(k+1)
+         temp4(k+1)=rsl*temp2(k)
+        end do
+        call fsst(temp4,m)
+        do j=0,m-1
+         un(j)=-temp4(j)
+        end do
+        un(m)=un(0)
+
+
+
+       unorm=un(0) 
+       return
+       end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   THIS FILE CONTAINS THE VELOCITY EVALUATION FOR H-S
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  Subroutine to compute the velocity vector
+c  THIS IS FOR CLOSED INTERFACES.
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c       The subroutine to calculate the velocity integral.
+c
+      subroutine velocity(N,h,p2,xc,yc,w,u,v,del,dcut)
+      implicit double precision(a-h,o-z),integer(i-n)
+      dimension xc(0:4800), u(0:4800)
+      dimension yc(0:4800), v(0:4800), w(0:4800)
+      dimension xct(0:9600), yct(0:9600), wt(0:9600)
+      integer Nh,N,i,j,in
+      pi=4.d0*datan(1.d0)
+      p2=2.d0*pi
+      Nh=N/2
+      call kfilterx(N,dcut,xc,h)
+      call kfilter(N,dcut,yc)
+      call kfilter(N,dcut,w)
+      do 100 j=0,N-1
+      xct(j)=xc(j)
+      yct(j)=yc(j)
+      wt(j)=w(j)
+ 100  continue
+
+      do 200 j=1,N+2
+      xct(N+j-1)=xc(j-1)
+      yct(N+j-1)=yc(j-1)
+      wt(N+j-1)=w(j-1)
+      u(j-1)=0.d0
+      v(j-1)=0.d0
+ 200  continue
+      do 210 j=0,Nh-1
+      do 220 i=0,N-1
+      in=i+2*j+1
+ 
+
+       temp=(yct(i)-yct(in))**2 + (xct(i)-xct(in))**2 + del*del
+
+       u(i)=u(i)-wt(in)*(yct(i)-yct(in))/temp
+
+       v(i)=v(i)+wt(in)*(xct(i)-xct(in))/temp
+ 
+ 220  continue
+ 210  continue
+      do 223 i=0,N-1
+      u(i)=u(i)*2.d0*h/p2
+      v(i)=v(i)*2.d0*h/p2
+ 223  continue
+      u(N)=u(0)
+      v(N)=v(0)
+      call kfilter(N,dcut,u)
+      call kfilter(N,dcut,v)
+      return
+      end
+ 
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  THIS SUBROUTINE GIVES INITIAL DATA IN X,Y.
+c  THIS ROUTINE IS FOR CLOSED CURVES.
+c
+c ***************************************************
+c    2 PLACES NEED TO BE MODIFIED TO CHANGE INITIAL CONDITIONS
+c ***************************************************
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine initiall(m,h,p2,sl,theta,eps,dcut,tol,alpha,xn,yn,
+     *                         dalpha)
+      implicit double precision (a-h,o-z)
+      dimension slo(0:4800),dalpha(0:4800)
+      dimension sx(0:4800),sy(0:4800),alpha(0:4800),theta(0:4800)
+      dimension xn(0:4800),yn(0:4800),sxn(0:4800),syn(0:4800)
+      dimension x(0:4800),y(0:4800)
+
+      common /init/ x0,y0
+      common /centroid/xc,yc 
+
+
+      do j=0,m
+
+c*************************************
+c THIS IS 1st PLACE FOR INITIAL COND
+
+      rad=3.d0+.3*cos(4.d0*p2*dble(j)*h)-.0*sin(4.d0*p2*dble(j)*h)
+	 
+
+          x(j)=rad*cos(p2*dble(j)*h)
+          y(j)=rad*sin(p2*dble(j)*h)
+  
+c**************************************
+
+
+       end do
+
+       call fd1(m,y,sy,h,dcut)
+       call fd1(m,x,sx,h,dcut)
+
+       do j=0,m-1
+        slo(j)=dsqrt(sx(j)**2+sy(j)**2)
+       end do
+       slo(m)=slo(0)
+
+
+       call arc(m,h,slo,alpha,tol)
+
+
+       do j=0,m
+        dgj=dble(j)*h
+
+
+c***************************
+c THIS IS 2nd PLACE TO CHANGE
+c       
+c         
+cccc    
+      
+       rad=3.d0+.3*cos(4.d0*p2*dble(j)*h)-.0*sin(4.d0*p2*dble(j)*h)
+
+          xn(j)=rad*cos(p2*alpha(j))
+          yn(j)=rad*sin(p2*alpha(j))
+
+       end do
+
+   
+     
+       call fd1(m,xn,sxn,h,dcut)
+       call fd1(m,yn,syn,h,dcut)
+
+       sl=0.d0
+       do j=0,m-1
+         sl=sl+dsqrt(sxn(j)**2+syn(j)**2)
+       end do
+       sl = sl/dble(m)
+
+c  now find theta, recover it from curvature.
+
+ 
+        if (dabs(sxn(0)) .gt. tol) then
+           if (  ((sxn(0) .gt. 0).and.(syn(0) .ge. 0)) )  then
+               t0=datan(syn(0)/sxn(0))
+           else if ( (sxn(0) .lt. 0).and.(syn(0) .le. 0) ) then
+               t0=-p2/2+datan(abs(syn(0)/sxn(0)))
+           else if ( (sxn(0) .gt. 0) .and. (syn(0) .le. 0) ) then
+               t0=-datan(abs(syn(0)/sxn(0)))
+           else 
+	       t0=p2/2-datan(abs(syn(0)/sxn(0)))  	
+           end if 
+        else 
+           if ((sxn(0) .gt. 0).and. (syn(0) .gt. 0)) then	
+             t0=p2/4.d0
+           else if ((sxn(0) .gt. 0).and. (syn(0) .lt. 0)) then
+             t0=-p2/4.d0
+           else if ((sxn(0) .lt. 0).and. (syn(0) .gt. 0)) then	
+             t0=p2/4.d0
+           else  
+             t0=-p2/4.d0
+           end if
+             
+        end if
+     
+        
+       
+       write(6,*)'syn(0)/sxn(0)=',syn(0)/sxn(0),'t0=',t0
+
+       call thetsolve(m,h,p2,tol,alpha,sxn,syn,theta,sl,t0)
+
+
+
+
+      x0=xn(0)
+      y0=yn(0)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c    THIS ROUTINE PROJECTS SL SO THAT
+c
+c    X_alpha=SL*COS(THETA)=1 + PERIODIC
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine stfilter(m,h,p2,dcut,sl,theta)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800)
+       dimension tempx(0:4800),tempxi(0:4800)
+
+       do j=0,m-1
+        tempx(j)=sl*cos(theta(j))
+       end do
+       tempx(m)=tempx(0)
+
+       call fin(m,h,p2,tempxi,tempx)
+
+       avx=tempxi(m)
+
+       temp=sl/avx
+       sl=temp
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c
+c    THIS ROUTINE FILTERS JUST **THETA**  TO ENSURE THAT THE
+c    ALPHA COEFF is EQUAL TO 1:
+c
+c    X_alpha=SL*COS(THETA)=1 + PERIODIC
+c
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine tfilter(m,h,p2,dcut,sl,theta)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800)
+       dimension tempx(0:4800),tempxi(0:4800)
+       dimension tempy(0:4800),tempyi(0:4800)
+
+       do j=0,m-1
+        tempx(j)=cos(theta(j))
+        tempy(j)=sin(theta(j))
+       end do
+       tempx(m)=tempx(0)
+       tempy(m)=tempy(0)
+
+       call fin(m,h,p2,tempxi,tempx)
+       call fin(m,h,p2,tempyi,tempy)
+
+       avx=tempxi(m)
+       avy=tempyi(m)
+
+       do j=0,m-1
+         tempx(j)=tempx(j)+ 1.d0/sl -avx
+         tempy(j)=tempy(j)-avy
+       end do
+       tempx(m)=tempx(0)
+       tempy(m)=tempy(0)
+
+       do j=0,m-1
+         theta(j)=datan(tempy(j)/tempx(j))
+       end do
+       theta(m)=theta(0)
+
+c       call kfilter(m,dcut,sl)
+c       call kfilter(m,dcut,theta)
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   find max value of a vector
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine vmax(m,v,vmx)
+       implicit double precision (a-h,o-z)
+       dimension v(0:4800)
+
+       vmx=0.d0
+       do j=0,m
+        vmx=dmax1(v(j),vmx)
+       end do
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c    solve for tangent angle from curvature.
+c
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine thetsolve(m,h,p2,tol,alpha,sxn,syn,theta,sl,t0)
+        implicit double precision (a-h,o-z)
+        dimension sxn(0:4800),syn(0:4800),theta(0:4800)
+        dimension alpha(0:4800),dkap(0:4800)
+        dimension sdkap(0:4800),dalpha(0:4800)
+        dimension ssxn(0:4800),ssyn(0:4800)
+        dimension stheta(0:4800),temp2(0:4800),temp4(0:4800)
+
+        dimension un(0:4800),utt(0:4800),sun(0:4800)
+        dimension xwy(0:4800),sxwy(0:4800),error(0:4800)
+        dimension w(0:4800),aux(0:4800)
+c  compute curvature from x,y
+
+
+        call fd1(m,sxn,ssxn,h,dcut)
+        call fd1(m,syn,ssyn,h,dcut)
+
+        do j=0,m-1
+         dkap(j)=(sxn(j)*ssyn(j)-syn(j)*ssxn(j))/(sl**3.d0)
+        end do
+        dkap(m)=dkap(0)
+      
+c  theta_alpha = sl* dkap
+
+        do j=0,m
+          stheta(j)=sl*dkap(j)-p2
+        end do
+
+c  integrate up. 
+
+
+
+        call fin(m,h,p2,theta,stheta)
+
+        write(6,*)'ave=',theta(m)/p2
+        write(6,*)'+++++++++++++++++++++++++++*****************&&!!!***'
+        write(6,*)'+++++++++++++++++++++++++++*****************&&!!!***'
+
+c  put in constant
+   
+        
+        do j=1,m
+         theta(j)=theta(j)+t0+p2*dble(j)*h
+c         write(6,*)theta(j)
+        end do
+        theta(0)=t0
+
+        write(6,*)'Initial theta0 = ',theta(0)
+
+        call acurv(m,sl,theta,dkap,dcut,h) 
+        write(6,*)'Initial curvature from theta = ',dkap(0)
+        dfthMax=0 
+        do j=0,m-1
+          dfthMax=max(abs(dkap(j)),dfthMax)
+        end do
+        write(6,*)'Max curvature= ',dfthMax
+        dfthMin= dfthMax
+        do j=0,m-1
+          dfthMin=min(dkap(j),dfthMin)
+        end do
+        write(6,*)'Min curvature= ',dfthMin
+
+c we compute using curvature
+        do j=0,m-1
+         temp2(j)=dkap(j)-p2
+        end do
+        temp2(m)=temp2(0)
+        call fast(temp2,m)
+        do j=1,m/2+1
+         k=2*(j-1)
+         rk=p2*dble(j-1)
+         rsl=(rk/sl)
+         temp4(k)=-rsl*temp2(k+1)
+         temp4(k+1)=rsl*temp2(k)
+        end do
+        call fsst(temp4,m)
+        do j=0,m-1
+         un(j)=-temp4(j)
+        end do
+        un(m)=un(0)
+        write(6,*)'Normal 0 using curv= ',un(0)
+c second attempt
+        do j=0,m-1
+         temp2(j)=theta(j)-p2*dble(j)*h
+        end do
+        temp2(m)=temp2(0)
+        call fast(temp2,m)
+        do j=1,m/2+1
+         k=2*(j-1)
+         rk=p2*dble(j-1)
+         rsl=(rk/sl)**2
+         temp4(k)=-rsl*temp2(k)
+         temp4(k+1)=-rsl*temp2(k+1)
+        end do
+        call fsst(temp4,m)
+        do j=0,m-1
+         un(j)=-temp4(j)
+        end do
+        un(m)=un(0)
+      	write(6,*)'normal manual',un(0)
+
+
+
+
+
+
+
+
+
+
+
+        call uset(m,h,p2,del,dcut,sl,theta,dalpha,w,un,utt)
+      	write(6,*)'Normal un0 uset=',un(0)
+        dfthMax=0 
+        do j=0,m-1
+          dfthMax=max(abs(un(j)),dfthMax)
+        end do
+        write(6,*)'Max normal= ',dfthMax
+        dfthMin= dfthMax
+        do j=0,m-1
+          dfthMin=min(un(j),dfthMin)
+        end do
+        write(6,*)'Min normal= ',dfthMin
+
+
+        call fd1(m,un,sun,h,dcut)
+      	write(6,*)'First sun0 acurv=',sun(0)/sl
+        dfthMax=0 
+        do j=0,m-1
+          dfthMax=max(abs(sun(j)),dfthMax)
+        end do
+        write(6,*)'Max sun= ',dfthMax/sl
+        dfthMin= dfthMax
+        do j=0,m-1
+          dfthMin=min(sun(j),dfthMin)
+        end do
+        write(6,*)'Min sun= ',dfthMin/sl
+
+
+
+
+
+c otra prueba
+c        do j=0,m
+c         xwy(j)=cos(p2*dble(j)*h)+p2*dble(j)*h
+c        end do
+c         call fd1x(m,xwy,sxwy,h,dcut)
+c        do j=0,m
+c         error(j)=-p2*sin(p2*dble(j)*h)+p2-sxwy(j)
+c        end do
+c        dfthMax=0 
+c        do j=0,m
+c          dfthMax=max(abs(error(j)),dfthMax)
+c        end do
+c        write(6,*)'Max error of derivative= ',dfthMax
+
+
+        return
+        end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

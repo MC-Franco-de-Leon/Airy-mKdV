@@ -1,0 +1,91 @@
+#
+#
+#FFLAGS = -fast
+#FFLAGS = -C -g
+$LFLAGS = -g
+LINK = gfortran 
+
+hsclosed : FAST1.o crayshawif_1.o hsforceim_1.o libhsc_1.o uset_un.o lambda11.o dgmres.o mat_L.o eq1.o 
+         
+	gfortran -O2 -o hsclosed FAST1.o crayshawif_1.o hsforceim_1.o libhsc_1.o uset_un.o lambda11.o dgmres.o mat_L.o eq1.o 
+
+hsclosed0: FAST1.o  hsforceim_1.o libhsc_1.o uset_un.o lambda11.o dgmres.o mat_L.o eq1.o Principal.o TestD.o
+         
+	gfortran -O2 -o hsclosed FAST1.o hsforceim_1.o libhsc_1.o uset_un.o lambda11.o dgmres.o mat_L.o eq1.o Principal.o TestD.o
+
+hsclosed_d : FAST1.o crayshawif_1david.o hsforceim_1.o libhsc_1.o
+	gfortran -O2 -o hsclosed_d FAST1.o crayshawif_1david.o hsforceim_1.o libhsc_1.o
+
+hsclosedcurv : FAST1.o crayshawif_curv.o hsforceim_1.o libhsc_curv.o
+	gfortran -O2 -o hsclosedcurv FAST1.o crayshawif_curv.o hsforceim_1.o libhsc_curv.o
+
+hsclosed_rot : FAST1.o crayshawif_2.o hsforceim_1.o libhsc_2.o
+	gfortran -O2 -o hsclosed_rot FAST1.o crayshawif_2.o hsforceim_1.o libhsc_2.o
+
+hsclosed_aniso : FAST1.o crayshawif_2.o hsforceim_1.o libhsc_3.o
+	g77 -O2 -o hsclosed_aniso FAST1.o crayshawif_2.o hsforceim_1.o libhsc_3.o
+
+hsclosedim : FAST1.o crayshawim_1.o hsforceim_1.o libhsc_1.o
+	gfortran -O2 -o hsclosedim FAST1.o crayshawim_1.o hsforceim_1.o libhsc_1.o
+
+drive_david : drive_david.o david_file.o
+	gfortran -O2 -o drive_david drive_david.o david_file.o
+
+FAST1.o : FAST1.f
+	gfortran -O2 -c  FAST1.f
+
+crayshawif_1.o : crayshawif_1.f
+	gfortran -O2 -c  crayshawif_1.f
+
+crayshawif_1david.o : crayshawif_1david.f
+	gfortran -O2 -c  crayshawif_1david.f
+
+crayshawif_curv.o : crayshawif_curv.f
+	gfortran -O2 -c  crayshawif_curv.f
+
+crayshawif_2.o : crayshawif_2.f
+	gfortran -O2 -c  crayshawif_2.f
+
+crayshawim_1.o : crayshawim_1.f
+	gfortran -O2 -c  crayshawim_1.f
+
+Principal.o : Principal.f
+	gfortran -O2 -c  Principal.f
+
+TestD.o : TestD.f
+	gfortran -O2 -c  TestD.f
+
+hsforceim_1.o : hsforceim_1.f
+	gfortran -O2 -c  hsforceim_1.f
+
+uset_un.o : uset_un.f
+	gfortran -O2 -c  uset_un.f
+
+lambda11.o : lambda11.f
+	gfortran -02 -c lambda11.f
+
+dgmres.o : dgmres.f
+	gfortran -02 -c dgmres.f
+
+mat_L.o : mat_L.f
+	gfortran -O2 -c  mat_L.f
+
+eq1.o : eq1.f
+	gfortran -02 -c eq1.f
+
+libhsc_1.o : libhsc_1.f
+	gfortran -O2 -c  libhsc_1.f
+
+libhsc_curv.o : libhsc_curv.f
+	gfortran -O2 -c  libhsc_curv.f
+
+libhsc_2.o : libhsc_2.f
+	gfortran -O2 -c  libhsc_2.f
+
+getnormvel.o : getnormvel.f
+	gfortran -O2 -c  getnormvel.f
+
+drive_david.o : drive_david.f
+	gfortran -O2 -c  drive_david.f
+
+

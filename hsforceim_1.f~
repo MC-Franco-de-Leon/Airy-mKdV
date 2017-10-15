@@ -1,0 +1,160 @@
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   THIS ROUTINE COMPUTES THE FORCING ON THE RHS OF THE EQN
+c   FOR SL.
+c                       periodic on [0,1]
+c                       and for closed curves
+c
+c   11/24/92
+c
+c
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine forcsl(m,h,p2,del,dcut,sl,theta,dalpha,fsl)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),dalpha(0:4800)
+       dimension stheta(0:4800), un(0:4800),utt(0:4800)
+       dimension temp(0:4800),tempi(0:4800),w(0:4800)
+       double precision unorm,utan
+
+c       common /essen/ ag,tau
+       common /init/ x0,y0
+       common /Nvel/ unorm
+
+       call fd1x(m,theta,stheta,h,dcut)
+       call uset(m,h,p2,del,dcut,sl,theta,dalpha,w,un,utt)
+
+       do j=0,m-1
+         temp(j)=stheta(j)*un(j)
+       end do
+       temp(m)=temp(0)
+
+       call fin(m,h,p2,tempi,temp)
+
+       fsl=tempi(m)
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  THIS ROUTINE COMPUTES THE FORCING ON THE RHS OF THE EQUATION
+c  FOR THETA, for the explicit method
+c
+c  11/24/92   periodic on [0,1]
+c             and for closed curves
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine forctheta(m,h,p2,del,dcut,sl,theta,dalpha,ftheta)
+       implicit double precision(a-h,o-z)
+       dimension theta(0:4800),ftheta(0:4800),dalpha(0:4800)
+       dimension stheta(0:4800), un(0:4800),utt(0:4800)
+       dimension sun(0:4800),ut(0:4800),w(0:4800)
+       dimension temp2(0:4800),temp4(0:4800)
+
+       double precision unorm,utan
+
+       common /Nvel/ unorm
+       common /init/ x0,y0
+
+       call fd1x(m,theta,stheta,h,dcut)
+       call uset(m,h,p2,del,dcut,sl,theta,dalpha,w,un,utt)
+       call rtvel(m,h,p2,theta,un,ut,dcut)
+       call fd1(m,un,sun,h,dcut)
+       do j=0,m-1
+        ftheta(j)=(-sun(j)+stheta(j)*ut(j))/sl
+       end do
+       ftheta(m)=ftheta(0)
+        
+c        do j=0,m-1
+c         temp2(j)=un(j)
+c        end do
+c        temp2(m)=temp2(0)
+c        call fast(temp2,m)
+c        do j=1,m/2+1
+c         k=2*(j-1)
+c         rk=p2*dble(j-1)
+c         rsl=(rk)
+c         temp4(k)=-rsl*temp2(k+1)
+c         temp4(k+1)=rsl*temp2(k)
+c        end do
+c        call fsst(temp4,m)
+c        do j=0,m-1
+c         sun(j)=temp4(j)
+c        end do
+c         sun(m)=sun(0)
+c      	write(6,*)'sun manual forctheta',sun(0)/sl
+c        dfthMax=0 
+c        do j=0,m-1
+c          dfthMax=max(abs(sun(j)),dfthMax)
+c        end do
+c        write(6,*)'Max sun in= ',dfthMax/sl
+c        dfthMin= dfthMax
+c        do j=0,m-1
+c          dfthMin=min(sun(j),dfthMin)
+c        end do
+c        write(6,*)'Min sun= ',dfthMin/sl
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c   THIS ROUTINE COMPUTES THE MODIFIED FORCING OF THE
+c   RHS FOR THE EQUATION FOR THETA FOR USE WITH THE
+c   IMPLICIT SCHEME.
+c
+c     periodic on [0,1] and for closed curves.
+c
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       subroutine fthetaim(m,h,p2,del,dcut,sl,theta,dalpha,fntheta)
+       implicit double precision (a-h,o-z)
+       dimension theta(0:4800),ftheta(0:4800),dalpha(0:4800)
+       dimension fntheta(0:4800),temp(0:4800),tempt(0:4800)
+       dimension stheta(0:4800),ut(0:4800),temp2(0:4800)
+       dimension un(0:4800),utt(0:4800),w(0:4800),compare(0:4800)
+       double precision unorm,utan
+       common /Nvel/ unorm    
+c       common /essen/ ag,tau
+       common /init/ x0,y0
+c       common /symm/aniso,flux,tcomp,wc,md
+
+       
+c  compute the old forcing
+       call forctheta(m,h,p2,del,dcut,sl,theta,dalpha,ftheta)
+
+c  now we must subtract off the stiffest part in Fourier space.
+
+       do j=0,m-1
+        temp(j)=ftheta(j)
+        tempt(j)=theta(j)-p2*dble(j)*h
+       end do
+       temp(m)=temp(0)
+       tempt(m)=tempt(0)
+
+       call fast(temp,m)
+       call fast(tempt,m)
+
+       do j=1,m/2+1
+
+        k=2*(j-1)
+        rlen=p2*dble(j-1)
+
+
+c for local model
+        rlen=(rlen/sl)**3
+
+        temp2(k)=temp(k)-rlen*tempt(k+1)
+        temp2(k+1)=temp(k+1)+rlen*tempt(k)
+
+       end do
+
+       call fsst(temp2,m)
+
+
+       do j=0,m-1
+        fntheta(j)=temp2(j)
+       end do
+       fntheta(m)=fntheta(0)
+
+       return
+       end
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

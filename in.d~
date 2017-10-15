@@ -1,0 +1,3 @@
+4,128,1d-2, 1,20, .8,-1, 0.1, 0.0d0, 3,    0.5, 
+0.d0,  1
+ t,   N,   dt,  tau, ncut, tp,    ag,  eps, del, mode, rmiu, fluxj, willmore
